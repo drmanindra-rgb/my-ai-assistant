@@ -1,0 +1,6 @@
+streamlit
+yfinance
+langchain
+langchain-chroma
+langchain-huggingface
+sentence-transformers
