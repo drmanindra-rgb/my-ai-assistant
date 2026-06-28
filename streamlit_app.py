@@ -26,10 +26,13 @@ if prompt := st.chat_input("Ask me about stocks or research..."):
         words = prompt.split()
         ticker = words[-1].upper() 
         response = check_stock_price(ticker)
-    elif "research" in text or "paper" in text or "ai" in text:
+    
+    # We added "spine" and "book" right here so the AI knows to check the cabinet!
+    elif "research" in text or "paper" in text or "ai" in text or "spine" in text or "book" in text:
         response = search_my_papers(prompt)
+        
     else:
-        response = "🤖 Boss AI: Try asking about a stock or research."
+        response = "🤖 Boss AI: Try asking about a stock, research, or the spine!"
 
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
