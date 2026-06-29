@@ -4,3 +4,9 @@ langchain
 langchain-chroma
 langchain-huggingface
 sentence-transformers
+pypdf
+schedule
+telethon
+pyTelegramBotAPI
+duckduckgo-search
+langchain-google-genai

@@ -1,39 +1,62 @@
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.tools import Tool
+from langchain.memory import ConversationBufferMemory
+import os
+from google.generativeai import configure, GenerativeModel
+
+# 1. SETUP
+os.environ["GOOGLE_API_KEY"] = "YOUR_GEMINI_API_KEY_HERE"
+configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+
+# 2. TOOLS
 from stock_tool import check_stock_price
 from reading_tool import search_my_papers
 
-def boss_ai(user_prompt):
-    # Convert text to lowercase to make it easy to read
-    text = user_prompt.lower()
-    
-    # Decision Matrix: The Boss decides who handles the job
-    if "stock" in text or "price" in text:
-        print("🤖 Boss AI: Sending this task to the Stock Sensor...")
-        # Simple trick: extract a word that looks like a ticker symbol
-        words = user_prompt.split()
-        ticker = words[-1].upper() 
-        return check_stock_price(ticker)
-        
-    elif "research" in text or "paper" in text or "ai" in text:
-        print("🤖 Boss AI: Opening the Research Filing Cabinet...")
-        return search_my_papers(user_prompt)
-        
-    else:
-        return "🤖 Boss AI: I'm not sure which tool to use. Try asking about a stock (e.g., 'stock price AAPL') or 'research'."
+def get_google_search_results(query):
+    """Uses Google Search grounding to fetch real-time info."""
+    model = GenerativeModel("gemini-1.5-flash")
+    response = model.generate_content(
+        query,
+        tools=[{"google_search_retrieval": {}}]
+    )
+    return response.text
 
-# --- The Chat Loop! ---
-if __name__ == "__main__":
-    print("\n" + "="*50)
-    print("🌟 Welcome to Your Personal AI Assistant! 🌟")
-    print("Type 'quit' to exit.")
-    print("="*50 + "\n")
-    
-    # This 'while' loop lets you chat forever until you type quit!
-    while True:
-        user_input = input("You: ")
-        
-        if user_input.lower() == 'quit':
-            print("🤖 Boss AI: Goodbye!")
-            break
-            
-        answer = boss_ai(user_input)
-        print(f"\n{answer}\n")
+tools = [
+    Tool(
+        name="Stock_Sensor",
+        func=lambda ticker: check_stock_price("^NSEI") if "nifty" in ticker.lower() else check_stock_price(ticker),
+        description="Check stock price. Use '^NSEI' if the user asks for Nifty."
+    ),
+    Tool(
+        name="Research_Cabinet",
+        func=search_my_papers,
+        description="Search local research papers."
+    ),
+    Tool(
+        name="Web_Explorer",
+        func=get_google_search_results,
+        description="Search Google for real-time information."
+    )
+]
+
+# 3. AGENT
+llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash")
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are Boss AI. Use Stock_Sensor for stocks (use ^NSEI for Nifty), Research_Cabinet for papers, and Web_Explorer for anything else."),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("user", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
+
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+agent = create_tool_calling_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, memory=memory, verbose=True)
+
+def boss_ai(user_prompt):
+    try:
+        result = agent_executor.invoke({"input": user_prompt})
+        return result["output"]
+    except Exception as e:
+        return f"I hit a snag: {e}"

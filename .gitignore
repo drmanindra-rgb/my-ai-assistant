@@ -1,0 +1,9 @@
+# Ignore heavy PDFs
+*.pdf
+
+# Ignore hidden system files
+__pycache__/
+.DS_Store
+
+# IGNORE MY PASSWORDS!
+.env
